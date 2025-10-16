@@ -17,7 +17,6 @@ builder.Services.Configure<PipelineConfiguration>(builder.Configuration.GetSecti
 
 // Регистрируем обработчики запросов
 builder.Services.AddScoped<IRequestProcessor, ValidationProcessor>();
-builder.Services.AddScoped<IRequestProcessor, AuthorizationProcessor>();
 builder.Services.AddScoped<IRequestProcessor, HeadersProcessor>();
 
 // Регистрируем обработчики ответов
@@ -54,15 +53,17 @@ builder.Services.AddHttpClient("", client =>
     AutomaticDecompression = System.Net.DecompressionMethods.All
 });
 
+builder.Services.AddTokenAuth();
+
 var app = builder.Build();
 
 var logger = app.Logger;
 
-// Configure the HTTP request pipeline.
+app.UseTokenAuth();
 
+// Configure the HTTP request pipeline.
 app.UseSwagger();
 app.UseSwaggerUI();
-
 
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");
@@ -73,11 +74,11 @@ app.MapGet("/", () => Results.Redirect("/index.html"))
 
 app.MapGet("/web", async (ProxyService proxyService, HttpContext context, string url, string? token) =>
 {
-    return await proxyService.ProxyRequestAsync(context, url, token);
+    return await proxyService.ProxyRequestAsync(context, url);
 })
 .WithName("ProxyWithPipeline")
 .WithSummary("Прокси-сервис с обработкой контента")
-.WithDescription(@"Прокси-сервис с полным пайплайном обработки запросов и ответов.
+.WithDescription(@"Прокси-сервис с полным пайплайном обработки запросов и ответов.              
 
 Возможности:
 - Валидация и авторизация запросов
@@ -102,7 +103,7 @@ app.MapGet("/web", async (ProxyService proxyService, HttpContext context, string
 .Produces(StatusCodes.Status401Unauthorized)
 .Produces(StatusCodes.Status500InternalServerError);
 
-app.MapGet("/proxy", async (SimpleCorsProxyService simpleCorsProxyService, HttpContext context, string? url) =>
+app.MapGet("/proxy", async (SimpleCorsProxyService simpleCorsProxyService, HttpContext context, string? url, string? token) =>
 {
     if (string.IsNullOrWhiteSpace(url))
     {
@@ -115,6 +116,10 @@ app.MapGet("/proxy", async (SimpleCorsProxyService simpleCorsProxyService, HttpC
 .WithDescription(@"Простой CORS прокси-сервис без обработки контента.
 
 Возвращает контент 'as-is' с добавлением только CORS заголовков.
+
+ВНИМАНИЕ: Авторизация может быть включена через конфигурацию (SimpleCorsProxy:RequireAuth).
+Если авторизация включена, требуется передать токен через параметр запроса или заголовок Authorization.
+
 Подходит для:
 - Обхода CORS ограничений
 - Проксирования статических ресурсов
@@ -123,16 +128,20 @@ app.MapGet("/proxy", async (SimpleCorsProxyService simpleCorsProxyService, HttpC
 Примеры использования:
 - Изображение: /proxy?url=https://example.com/image.jpg
 - API данные: /proxy?url=https://api.example.com/data.json
-- Любой ресурс: /proxy?url=https://example.com/resource")
+- С токеном (query): /proxy?url=https://example.com&token=your-token
+- С токеном (header): /proxy?url=https://example.com с заголовком 'Authorization: Bearer your-token'")
 .WithOpenApi(operation =>
 {
     operation.Parameters[0].Description = "Целевой URL для проксирования (обязательный параметр). Должен быть корректным HTTP/HTTPS URL.";
     operation.Parameters[0].Example = new Microsoft.OpenApi.Any.OpenApiString("https://api.example.com/data");
     operation.Parameters[0].Required = true;
+    operation.Parameters[1].Description = "Токен авторизации (опционально, если включена авторизация). Можно передать через параметр или заголовок Authorization.";
+    operation.Parameters[1].Example = new Microsoft.OpenApi.Any.OpenApiString("your-api-key");
     return operation;
 })
 .Produces<string>(StatusCodes.Status200OK, "application/json", "text/html", "text/plain", "application/octet-stream")
 .Produces(StatusCodes.Status400BadRequest)
+.Produces(StatusCodes.Status401Unauthorized)
 .Produces(StatusCodes.Status500InternalServerError);
 
 app.Run();

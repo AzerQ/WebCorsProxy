@@ -35,11 +35,6 @@ public class RequestProcessingContext
     public string TargetUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// Токен авторизации
-    /// </summary>
-    public string? Token { get; set; }
-
-    /// <summary>
     /// HTTP запрос к целевому серверу
     /// </summary>
     public HttpRequestMessage ProxyRequest { get; set; } = null!;

@@ -10,13 +10,27 @@ public class SimpleCorsProxyService
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<SimpleCorsProxyService> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly string[] _apiKeys;
+    private readonly bool _requireAuth;
 
     public SimpleCorsProxyService(
         IHttpClientFactory httpClientFactory,
-        ILogger<SimpleCorsProxyService> logger)
+        ILogger<SimpleCorsProxyService> logger,
+        IConfiguration configuration)
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _configuration = configuration;
+        
+        // Загружаем API ключи
+        _apiKeys = configuration.GetSection("ApiKeys").GetChildren()
+            .Select(c => c.Value ?? string.Empty)
+            .Where(v => !string.IsNullOrEmpty(v))
+            .ToArray();
+            
+        // Проверяем, требуется ли авторизация для SimpleCorsProxy
+        _requireAuth = configuration.GetValue<bool>("SimpleCorsProxy:RequireAuth", false);
     }
 
     /// <summary>
@@ -31,10 +45,11 @@ public class SimpleCorsProxyService
     /// <summary>
     /// Проксирует запрос к целевому URL и возвращает контент as-is
     /// </summary>
-    public async Task<IResult> ProxyRequestAsync(HttpContext context, string url)
+    public async Task<IResult> ProxyRequestAsync(HttpContext context, string url, string? token = null)
     {
         try
         {
+           
             // Валидация URL
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             {

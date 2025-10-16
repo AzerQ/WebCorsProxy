@@ -1,0 +1,172 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE_NAME: webcorsproxy
+  CONTAINER_NAME: proxyserver
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.DOCKER_IMAGE_NAME }}:latest .
+
+      - name: Save Docker image
+        run: |
+          docker save ${{ env.DOCKER_IMAGE_NAME }}:latest | gzip > image.tar.gz
+
+      - name: Copy files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: "image.tar.gz,docker-compose.yml,appsettings.json"
+          target: "~/webcorsproxy"
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            cd ~/webcorsproxy
+            
+            # Create appsettings.Production.json with API keys from secrets
+            cat > appsettings.Production.json << 'EOF'
+            {
+              "Logging": {
+                "LogLevel": {
+                  "Default": "Information",
+                  "Microsoft.AspNetCore": "Warning"
+                }
+              },
+              "AllowedHosts": "*",
+              "ApiKeys": ${{ secrets.API_KEYS || '["default-key-1", "default-key-2"]' }},
+              "SimpleCorsProxy": {
+                "RequireAuth": ${{ secrets.SIMPLE_CORS_REQUIRE_AUTH || 'true' }}
+              },
+              "ProxyPipeline": {
+                "RequestPipeline": {
+                  "EnabledProcessors": [
+                    "ValidationProcessor",
+                    "AuthorizationProcessor",
+                    "HeadersProcessor"
+                  ],
+                  "ProcessorSettings": {
+                    "ValidationProcessor": {
+                      "Order": 0,
+                      "Enabled": true
+                    },
+                    "AuthorizationProcessor": {
+                      "Order": 1,
+                      "Enabled": true
+                    },
+                    "HeadersProcessor": {
+                      "Order": 2,
+                      "Enabled": true
+                    }
+                  }
+                },
+                "ResponsePipeline": {
+                  "EnabledProcessors": [
+                    "ContentDetectionProcessor",
+                    "HeadersResponseProcessor",
+                    "HtmlContentProcessor",
+                    "CssContentProcessor",
+                    "JsContentProcessor"
+                  ],
+                  "ProcessorSettings": {
+                    "ContentDetectionProcessor": {
+                      "Order": 0,
+                      "Enabled": true
+                    },
+                    "HeadersResponseProcessor": {
+                      "Order": 1,
+                      "Enabled": true
+                    },
+                    "HtmlContentProcessor": {
+                      "Order": 2,
+                      "Enabled": true
+                    },
+                    "CssContentProcessor": {
+                      "Order": 2,
+                      "Enabled": true
+                    },
+                    "JsContentProcessor": {
+                      "Order": 2,
+                      "Enabled": true
+                    }
+                  }
+                }
+              }
+            }
+            EOF
+            
+            # Load Docker image
+            docker load < image.tar.gz
+            
+            # Stop and remove old container
+            docker stop ${{ env.CONTAINER_NAME }} || true
+            docker rm ${{ env.CONTAINER_NAME }} || true
+            
+            # Remove old images (keep last 2)
+            docker images ${{ env.DOCKER_IMAGE_NAME }} --format "{{.ID}}" | tail -n +3 | xargs -r docker rmi || true
+            
+            # Run new container
+            docker run -d \
+              --name ${{ env.CONTAINER_NAME }} \
+              --restart unless-stopped \
+              -p 8000:8080 \
+              -v ~/webcorsproxy/appsettings.Production.json:/app/appsettings.Production.json:ro \
+              -e ASPNETCORE_ENVIRONMENT=Production \
+              ${{ env.DOCKER_IMAGE_NAME }}:latest
+            
+            # Clean up
+            rm -f image.tar.gz
+            
+            # Show container status
+            docker ps -a | grep ${{ env.CONTAINER_NAME }}
+            
+            # Show logs
+            echo "=== Container logs ==="
+            docker logs --tail 50 ${{ env.CONTAINER_NAME }}
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            # Wait for container to be healthy
+            sleep 5
+            
+            # Check if container is running
+            if [ "$(docker ps -q -f name=${{ env.CONTAINER_NAME }})" ]; then
+              echo "? Container is running successfully"
+              docker ps -f name=${{ env.CONTAINER_NAME }}
+            else
+              echo "? Container failed to start"
+              docker logs ${{ env.CONTAINER_NAME }}
+              exit 1
+            fi
