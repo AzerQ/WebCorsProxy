@@ -24,7 +24,7 @@ public class ProxyService
         _responsePipeline = responsePipeline;
     }
 
-    public async Task<IResult> ProxyRequestAsync(HttpContext context, string url, string? token)
+    public async Task<IResult> ProxyRequestAsync(HttpContext context, string url)
     {
         var httpClient = _httpClientFactory.CreateClient();
         int? responseStatusCode = null;
@@ -36,7 +36,6 @@ public class ProxyService
             {
                 HttpContext = context,
                 TargetUrl = url,
-                Token = token,
                 ProxyRequest = new HttpRequestMessage(HttpMethod.Get, url)
             };
 
@@ -58,7 +57,6 @@ public class ProxyService
             {
                 HttpContext = context,
                 TargetUrl = url,
-                Token = token,
                 ProxyResponse = response,
                 ContentType = response.Content.Headers.ContentType?.MediaType
             };

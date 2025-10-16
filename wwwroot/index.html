@@ -72,6 +72,15 @@
         <div id="result"></div>
     </div>
 
+    <div class="container">
+        <h2>Simple CORS Proxy (No Processing)</h2>
+        <p>This endpoint returns content as-is without any HTML/CSS/JS processing. No API token required.</p>
+        <input type="text" id="simpleUrl" placeholder="Enter URL to proxy (e.g., https://example.com or https://api.example.com/data)" value="https://httpbin.org/json">
+        <button onclick="openSimpleProxyUrl()">Open in New Window</button>
+        <button onclick="fetchSimpleProxy()">Fetch and Display</button>
+        <div id="simpleResult"></div>
+    </div>
+
     <div class="links">
         <a href="/swagger" target="_blank">API Documentation (Swagger)</a>
     </div>
@@ -88,6 +97,51 @@
 
             const proxyUrl = `${window.location.origin}/web?url=${encodeURIComponent(url)}&token=${encodeURIComponent(token)}`;
             window.open(proxyUrl, '_blank');
+        }
+
+        function openSimpleProxyUrl() {
+            const url = document.getElementById('simpleUrl').value;
+
+            if (!url) {
+                alert('Please enter URL');
+                return;
+            }
+
+            const proxyUrl = `${window.location.origin}/proxy?url=${encodeURIComponent(url)}`;
+            window.open(proxyUrl, '_blank');
+        }
+
+        async function fetchSimpleProxy() {
+            const url = document.getElementById('simpleUrl').value;
+            const resultDiv = document.getElementById('simpleResult');
+
+            if (!url) {
+                alert('Please enter URL');
+                return;
+            }
+
+            try {
+                const proxyUrl = `${window.location.origin}/proxy?url=${encodeURIComponent(url)}`;
+                const response = await fetch(proxyUrl);
+                const contentType = response.headers.get('content-type');
+                
+                let content;
+                if (contentType && contentType.includes('application/json')) {
+                    content = JSON.stringify(await response.json(), null, 2);
+                } else {
+                    content = await response.text();
+                }
+
+                resultDiv.innerHTML = `<pre style="text-align: left; background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto;">${escapeHtml(content)}</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     </script>
 </body>
