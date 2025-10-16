@@ -283,9 +283,16 @@ public class ProxyService
     private string ProcessJsContent(string jsContent, string baseUrl, string? token)
     {
         jsContent = ProxyAllHttpLinks(jsContent, token);
+
+        // Replace location.origin with the original URL's origin
+        var originalUri = new Uri(baseUrl);
+        var originalOrigin = originalUri.GetLeftPart(UriPartial.Authority);
+        var locationOriginRegex = new Regex(@"\blocation\.origin\b");
+        jsContent = locationOriginRegex.Replace(jsContent, $"\"{originalOrigin}\"");
+
         // Regex to find import("...") or import '...'
         var importRegex = new Regex(@"import\((['""])([^'""]+)\1\)", RegexOptions.IgnoreCase);
-    
+
         return importRegex.Replace(jsContent, match =>
         {
             var urlValue = match.Groups[2].Value;
@@ -293,7 +300,7 @@ public class ProxyService
             {
                 return match.Value;
             }
-    
+
             try
             {
                 var absoluteUri = new Uri(new Uri(baseUrl), urlValue).AbsoluteUri;
