@@ -18,7 +18,13 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader();
     });
 });
-builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("", client =>
+{
+    client.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate");
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AutomaticDecompression = System.Net.DecompressionMethods.All
+});
 
 var app = builder.Build();
 
