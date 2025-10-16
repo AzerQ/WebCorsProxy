@@ -1,6 +1,124 @@
-@ProxyServer_HostAddress = http://localhost:5054
+### Примеры использования WebCorsProxy API
 
-GET {{ProxyServer_HostAddress}}/weatherforecast/
+@ProxyServer_HostAddress = http://localhost:5054
+# Измените адрес на ваш, если отличается (например, https://localhost:7001)
+
+@authToken = Bearer your-api-key-1
+# Замените на реальный токен для тестирования защищенных ресурсов
+
+###############################################################################
+# 1. Простой CORS прокси (/proxy)
+# Возвращает контент "as-is" с CORS заголовками
+###############################################################################
+
+### Пример 1.1: Простой GET запрос через CORS прокси
+GET {{ProxyServer_HostAddress}}/proxy?url=https://jsonplaceholder.typicode.com/posts/1
 Accept: application/json
 
-###
+### Пример 1.2: Получение списка пользователей
+GET {{ProxyServer_HostAddress}}/proxy?url=https://jsonplaceholder.typicode.com/users
+
+### Пример 1.3: Получение изображения через CORS прокси
+GET {{ProxyServer_HostAddress}}/proxy?url=https://via.placeholder.com/150
+
+### Пример 1.4: Получение HTML страницы
+GET {{ProxyServer_HostAddress}}/proxy?url=https://example.com
+
+### Пример 1.5: Получение JSON данных с публичного API
+GET {{ProxyServer_HostAddress}}/proxy?url=https://api.github.com/repos/microsoft/vscode
+
+### Пример 1.6: Ошибка - отсутствует URL параметр
+GET {{ProxyServer_HostAddress}}/proxy
+
+### Пример 1.7: Получение данных с API с параметрами
+GET {{ProxyServer_HostAddress}}/proxy?url=https://jsonplaceholder.typicode.com/posts?userId=1
+
+###############################################################################
+# 2. Прокси с пайплайном обработки (/web)
+# Обрабатывает HTML/CSS/JS контент, преобразует относительные URL
+# Токен передается через заголовок Authorization
+###############################################################################
+
+### Пример 2.1: Получение веб-страницы с обработкой контента
+GET {{ProxyServer_HostAddress}}/web?url=https://example.com
+
+### Пример 2.2: Получение страницы с обработкой HTML
+GET {{ProxyServer_HostAddress}}/web?url=https://www.wikipedia.org
+
+### Пример 2.3: Запрос с токеном авторизации через заголовок
+GET {{ProxyServer_HostAddress}}/web?url=https://api.example.com/protected
+Authorization: {{authToken}}
+
+### Пример 2.4: Получение API данных через обработанный пайплайн
+GET {{ProxyServer_HostAddress}}/web?url=https://jsonplaceholder.typicode.com/posts/1
+
+### Пример 2.5: Запрос к защищенному ресурсу GitHub API
+# Замените значение переменной @authToken на реальный GitHub токен
+GET {{ProxyServer_HostAddress}}/web?url=https://api.github.com/user
+Authorization: {{authToken}}
+
+### Пример 2.6: Получение приватного репозитория с авторизацией
+GET {{ProxyServer_HostAddress}}/web?url=https://api.github.com/user/repos?visibility=private
+Authorization: {{authToken}}
+
+### Пример 2.7: Получение сложной HTML страницы с обработкой ссылок
+GET {{ProxyServer_HostAddress}}/web?url=https://news.ycombinator.com
+
+### Пример 2.8: API запрос с Bearer токеном
+GET {{ProxyServer_HostAddress}}/web?url=https://api.example.com/data
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.token
+
+###############################################################################
+# 3. Тестовые сценарии
+###############################################################################
+
+### Тест 3.1: Проверка CORS заголовков
+GET {{ProxyServer_HostAddress}}/proxy?url=https://jsonplaceholder.typicode.com/posts/1
+Origin: https://example.com
+
+### Тест 3.2: Проверка обработки различных Content-Type с авторизацией
+GET {{ProxyServer_HostAddress}}/web?url=https://jsonplaceholder.typicode.com/posts/1
+Accept: application/json
+Authorization: {{authToken}}
+
+### Тест 3.3: Большой ответ (список всех постов)
+GET {{ProxyServer_HostAddress}}/proxy?url=https://jsonplaceholder.typicode.com/posts
+
+### Тест 3.4: Проверка редиректов
+GET {{ProxyServer_HostAddress}}/proxy?url=https://github.com
+
+###############################################################################
+# 4. Примеры с реальными API
+###############################################################################
+
+### Пример 4.1: GitHub API - информация о репозитории
+GET {{ProxyServer_HostAddress}}/proxy?url=https://api.github.com/repos/dotnet/aspnetcore
+
+### Пример 4.2: JSONPlaceholder - комментарии к посту
+GET {{ProxyServer_HostAddress}}/proxy?url=https://jsonplaceholder.typicode.com/posts/1/comments
+
+### Пример 4.3: Получение случайного пользователя
+GET {{ProxyServer_HostAddress}}/proxy?url=https://randomuser.me/api/
+
+### Пример 4.4: Получение данных о погоде (публичный API без ключа)
+# Примечание: некоторые API могут требовать регистрации
+GET {{ProxyServer_HostAddress}}/proxy?url=https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&current_weather=true
+
+###############################################################################
+# 5. Сравнение /proxy vs /web
+###############################################################################
+
+### Пример 5.1: Один и тот же URL через /proxy (без обработки)
+GET {{ProxyServer_HostAddress}}/proxy?url=https://example.com
+
+### Пример 5.2: Тот же URL через /web (с обработкой HTML)
+GET {{ProxyServer_HostAddress}}/web?url=https://example.com
+
+###############################################################################
+# Примечания:
+# - /proxy - используйте для простого проксирования без изменения контента
+# - /web - используйте когда нужна обработка HTML/CSS/JS и преобразование URL
+# - Оба эндпоинта добавляют CORS заголовки для обхода ограничений
+# - Для /web токен передается через заголовок Authorization (не через параметр token)
+# - Переменная @authToken используется для всех запросов с авторизацией
+###############################################################################
