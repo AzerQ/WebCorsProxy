@@ -11,7 +11,7 @@
     <None Include=".github\DEPLOYMENT.md" />
     <None Include=".github\QUICKSTART.md" />
     <None Include=".github\README.md" />
-    <None Include=".github\workflows\deploy-ghcr.yml" />
+    <None Include=".github\workflows\deploy-ghcr.yml.nouse" />
     <None Include=".github\workflows\deploy.yml" />
   </ItemGroup>
 
