@@ -20,6 +20,15 @@ public class SimpleCorsProxyService
     }
 
     /// <summary>
+    /// Получает безопасную строку URL для логирования (убирает чувствительные данные)
+    /// </summary>
+    private static string GetSafeUrlForLogging(Uri uri)
+    {
+        // Возвращаем URL без параметров запроса и фрагментов, которые могут содержать чувствительные данные
+        return $"{uri.Scheme}://{uri.Host}{uri.AbsolutePath}";
+    }
+
+    /// <summary>
     /// Проксирует запрос к целевому URL и возвращает контент as-is
     /// </summary>
     public async Task<IResult> ProxyRequestAsync(HttpContext context, string url)
@@ -38,7 +47,8 @@ public class SimpleCorsProxyService
                 return Results.BadRequest("Only HTTP and HTTPS protocols are supported");
             }
 
-            _logger.LogInformation("Proxying request to: {Url}", url);
+            // Логируем безопасную версию URL (без потенциально чувствительных query параметров)
+            _logger.LogInformation("Proxying request to: {Url}", GetSafeUrlForLogging(uri));
 
             var httpClient = _httpClientFactory.CreateClient();
 
@@ -96,12 +106,12 @@ public class SimpleCorsProxyService
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "HTTP request error while proxying to {Url}", url);
+            _logger.LogError(ex, "HTTP request error while proxying to: {Message}", ex.Message);
             return Results.Problem($"Error proxying request: {ex.Message}", statusCode: StatusCodes.Status502BadGateway);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error while proxying to {Url}", url);
+            _logger.LogError(ex, "Unexpected error while proxying");
             return Results.Problem($"Error proxying request: {ex.Message}", statusCode: StatusCodes.Status500InternalServerError);
         }
     }
