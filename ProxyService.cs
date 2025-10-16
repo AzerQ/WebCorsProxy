@@ -48,7 +48,7 @@ public class ProxyService
             
             var contentType = response.Content.Headers.ContentType?.MediaType;
 
-            if (contentType == null || (!contentType.Contains("text/html") && !contentType.Contains("text/plain") && !contentType.Contains("application/json") && !contentType.Contains("text/css")))
+            if (contentType == null || (!contentType.Contains("text/html") && !contentType.Contains("text/plain") && !contentType.Contains("application/json") && !contentType.Contains("text/css") && !contentType.Contains("javascript")))
             {
                 var contentStream = await response.Content.ReadAsStreamAsync();
                 
@@ -79,6 +79,10 @@ public class ProxyService
             else if (contentType?.Contains("text/css") == true)
             {
                 content = ProcessCssContent(content, url, token);
+            }
+            else if (contentType?.Contains("javascript") == true)
+            {
+                content = ProcessJsContent(content, url, token);
             }
 
             context.Response.Headers.AccessControlAllowOrigin = "*";
@@ -112,8 +116,38 @@ public class ProxyService
         return !string.IsNullOrEmpty(token) && _apiKeys.Contains(token);
     }
 
+    private string ProxyAllHttpLinks(string content, string? token)
+    {
+        // This regex finds absolute http/https links, ensuring they are not already part of an HTML attribute we've rewritten.
+        // It looks for URLs in contexts like strings ('"...http...") or just plain text.
+        var httpRegex = new Regex(@"([""'])(https?:\/\/[^""']+)\1|(?<!=)(https?:\/\/[^\s""'<`]+)", RegexOptions.IgnoreCase);
+
+        return httpRegex.Replace(content, match =>
+        {
+            // Group 2 and 3 capture the URL depending on whether it was in quotes or not.
+            var urlValue = match.Groups[2].Success ? match.Groups[2].Value : match.Groups[3].Value;
+            
+            if (string.IsNullOrEmpty(urlValue))
+            {
+                return match.Value;
+            }
+
+            var tokenParam = string.IsNullOrEmpty(token) ? "" : $"&token={token}";
+            var proxyUrl = $"/web?url={Uri.EscapeDataString(urlValue)}{tokenParam}";
+
+            // Reconstruct the original context (e.g., quotes) if it existed.
+            if (match.Groups[1].Success)
+            {
+                return $"{match.Groups[1].Value}{proxyUrl}{match.Groups[1].Value}";
+            }
+            
+            return proxyUrl;
+        });
+    }
+    
     private string ProcessHtmlContent(string htmlContent, string baseUrl, string? token)
     {
+        htmlContent = ProxyAllHttpLinks(htmlContent, token);
         var doc = new HtmlDocument();
         doc.LoadHtml(htmlContent);
     
@@ -162,6 +196,16 @@ public class ProxyService
             {
                 var styleAttribute = node.Attributes["style"];
                 styleAttribute.Value = ProcessCssContent(styleAttribute.Value, baseUrl, token);
+            }
+        }
+
+        // Process inline scripts
+        var scriptNodes = doc.DocumentNode.SelectNodes("//script[not(@src)]");
+        if (scriptNodes != null)
+        {
+            foreach (var scriptNode in scriptNodes)
+            {
+                scriptNode.InnerHtml = ProcessJsContent(scriptNode.InnerHtml, baseUrl, token);
             }
         }
     
@@ -228,6 +272,34 @@ public class ProxyService
                 var absoluteUri = new Uri(new Uri(baseUrl), urlValue).AbsoluteUri;
                 var tokenParam = string.IsNullOrEmpty(token) ? "" : $"&token={token}";
                 return $"url(/web?url={Uri.EscapeDataString(absoluteUri)}{tokenParam})";
+            }
+            catch (UriFormatException)
+            {
+                return match.Value;
+            }
+        });
+    }
+
+    private string ProcessJsContent(string jsContent, string baseUrl, string? token)
+    {
+        jsContent = ProxyAllHttpLinks(jsContent, token);
+        // Regex to find import("...") or import '...'
+        var importRegex = new Regex(@"import\((['""])([^'""]+)\1\)", RegexOptions.IgnoreCase);
+    
+        return importRegex.Replace(jsContent, match =>
+        {
+            var urlValue = match.Groups[2].Value;
+            if (string.IsNullOrEmpty(urlValue) || urlValue.StartsWith("http") || urlValue.StartsWith("#") || urlValue.StartsWith("data:"))
+            {
+                return match.Value;
+            }
+    
+            try
+            {
+                var absoluteUri = new Uri(new Uri(baseUrl), urlValue).AbsoluteUri;
+                var tokenParam = string.IsNullOrEmpty(token) ? "" : $"&token={token}";
+                var proxyUrl = $"/web?url={Uri.EscapeDataString(absoluteUri)}{tokenParam}";
+                return $"import('{proxyUrl}')";
             }
             catch (UriFormatException)
             {
