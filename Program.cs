@@ -33,6 +33,10 @@ builder.Services.AddScoped<IResponsePipeline, DefaultResponsePipeline>();
 
 // Регистрируем сервис с пайплайнами
 builder.Services.AddScoped<ProxyService>();
+
+// Регистрируем простой CORS прокси-сервис
+builder.Services.AddScoped<SimpleCorsProxyService>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -70,6 +74,15 @@ app.MapGet("/", () => Results.Redirect("/index.html"));
 app.MapGet("/web", async (ProxyService proxyService, HttpContext context, string url, string? token) =>
 {
     return await proxyService.ProxyRequestAsync(context, url, token);
+});
+
+app.MapGet("/proxy", async (SimpleCorsProxyService simpleCorsProxyService, HttpContext context, string? url) =>
+{
+    if (string.IsNullOrWhiteSpace(url))
+    {
+        return Results.BadRequest("URL parameter is required");
+    }
+    return await simpleCorsProxyService.ProxyRequestAsync(context, url);
 });
 
 app.Run();
