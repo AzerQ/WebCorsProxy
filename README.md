@@ -235,7 +235,7 @@ docker-compose up -d
 **Необходимые GitHub Secrets**:
 - `SERVER_HOST` - IP адрес или домен сервера
 - `SERVER_USER` - SSH пользователь
-- `SSH_PRIVATE_KEY` - SSH приватный ключ
+- `SERVER_PASSWORD` - Пароль для SSH подключения
 - `API_KEYS` - JSON массив с API ключами (например: `["key1", "key2"]`)
 - `SERVER_PORT` - SSH порт (опционально, по умолчанию 22)
 - `SIMPLE_CORS_REQUIRE_AUTH` - Требовать авторизацию для `/proxy` (опционально, по умолчанию `true`)
