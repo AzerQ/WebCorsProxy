@@ -1,72 +1,72 @@
-# Ручное обновление SimpleCorsProxyService.cs
+# Р СѓС‡РЅРѕРµ РѕР±РЅРѕРІР»РµРЅРёРµ SimpleCorsProxyService.cs
 
-Файл `SimpleCorsProxyService.cs` нужно обновить, добавив поддержку авторизации.
+Р¤Р°Р№Р» `SimpleCorsProxyService.cs` РЅСѓР¶РЅРѕ РѕР±РЅРѕРІРёС‚СЊ, РґРѕР±Р°РІРёРІ РїРѕРґРґРµСЂР¶РєСѓ Р°РІС‚РѕСЂРёР·Р°С†РёРё.
 
-## Изменения:
+## РР·РјРµРЅРµРЅРёСЏ:
 
-### 1. Добавить поля в класс (после существующих полей):
+### 1. Р”РѕР±Р°РІРёС‚СЊ РїРѕР»СЏ РІ РєР»Р°СЃСЃ (РїРѕСЃР»Рµ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёС… РїРѕР»РµР№):
 ```csharp
 private readonly IConfiguration _configuration;
 private readonly string[] _apiKeys;
 private readonly bool _requireAuth;
 ```
 
-### 2. Обновить конструктор:
+### 2. РћР±РЅРѕРІРёС‚СЊ РєРѕРЅСЃС‚СЂСѓРєС‚РѕСЂ:
 ```csharp
 public SimpleCorsProxyService(
     IHttpClientFactory httpClientFactory,
     ILogger<SimpleCorsProxyService> logger,
-    IConfiguration configuration)  // <- Добавлен параметр
+    IConfiguration configuration)  // <- Р”РѕР±Р°РІР»РµРЅ РїР°СЂР°РјРµС‚СЂ
 {
     _httpClientFactory = httpClientFactory;
     _logger = logger;
-    _configuration = configuration;  // <- Новое
+    _configuration = configuration;  // <- РќРѕРІРѕРµ
     
-    // Загружаем API ключи <- Новое
+    // Р—Р°РіСЂСѓР¶Р°РµРј API РєР»СЋС‡Рё <- РќРѕРІРѕРµ
     _apiKeys = configuration.GetSection("ApiKeys").GetChildren()
         .Select(c => c.Value ?? string.Empty)
         .Where(v => !string.IsNullOrEmpty(v))
         .ToArray();
         
-    // Проверяем, требуется ли авторизация для SimpleCorsProxy <- Новое
+    // РџСЂРѕРІРµСЂСЏРµРј, С‚СЂРµР±СѓРµС‚СЃСЏ Р»Рё Р°РІС‚РѕСЂРёР·Р°С†РёСЏ РґР»СЏ SimpleCorsProxy <- РќРѕРІРѕРµ
     _requireAuth = configuration.GetValue<bool>("SimpleCorsProxy:RequireAuth", false);
 }
 ```
 
-### 3. Обновить сигнатуру метода ProxyRequestAsync:
+### 3. РћР±РЅРѕРІРёС‚СЊ СЃРёРіРЅР°С‚СѓСЂСѓ РјРµС‚РѕРґР° ProxyRequestAsync:
 ```csharp
-public async Task<IResult> ProxyRequestAsync(HttpContext context, string url, string? token = null)  // <- Добавлен параметр token
+public async Task<IResult> ProxyRequestAsync(HttpContext context, string url, string? token = null)  // <- Р”РѕР±Р°РІР»РµРЅ РїР°СЂР°РјРµС‚СЂ token
 ```
 
-### 4. Добавить проверку авторизации в начало метода ProxyRequestAsync (после try):
+### 4. Р”РѕР±Р°РІРёС‚СЊ РїСЂРѕРІРµСЂРєСѓ Р°РІС‚РѕСЂРёР·Р°С†РёРё РІ РЅР°С‡Р°Р»Рѕ РјРµС‚РѕРґР° ProxyRequestAsync (РїРѕСЃР»Рµ try):
 ```csharp
 try
 {
-    // Проверка авторизации, если требуется <- Новое
+    // РџСЂРѕРІРµСЂРєР° Р°РІС‚РѕСЂРёР·Р°С†РёРё, РµСЃР»Рё С‚СЂРµР±СѓРµС‚СЃСЏ <- РќРѕРІРѕРµ
     if (_requireAuth && !IsAuthorized(context, token))
     {
         _logger.LogWarning("Unauthorized SimpleCorsProxy request to: {Url}", url);
         return Results.Unauthorized();
     }
     
-    // ... остальной код ...
+    // ... РѕСЃС‚Р°Р»СЊРЅРѕР№ РєРѕРґ ...
 }
 ```
 
-### 5. Добавить метод IsAuthorized в конец класса (перед закрывающей скобкой класса):
+### 5. Р”РѕР±Р°РІРёС‚СЊ РјРµС‚РѕРґ IsAuthorized РІ РєРѕРЅРµС† РєР»Р°СЃСЃР° (РїРµСЂРµРґ Р·Р°РєСЂС‹РІР°СЋС‰РµР№ СЃРєРѕР±РєРѕР№ РєР»Р°СЃСЃР°):
 ```csharp
 /// <summary>
-/// Проверяет авторизацию запроса
+/// РџСЂРѕРІРµСЂСЏРµС‚ Р°РІС‚РѕСЂРёР·Р°С†РёСЋ Р·Р°РїСЂРѕСЃР°
 /// </summary>
 private bool IsAuthorized(HttpContext context, string? tokenParam = null)
 {
-    // Если авторизация не требуется, всегда разрешаем
+    // Р•СЃР»Рё Р°РІС‚РѕСЂРёР·Р°С†РёСЏ РЅРµ С‚СЂРµР±СѓРµС‚СЃСЏ, РІСЃРµРіРґР° СЂР°Р·СЂРµС€Р°РµРј
     if (!_requireAuth)
     {
         return true;
     }
 
-    // Если API ключей нет, разрешаем (для обратной совместимости)
+    // Р•СЃР»Рё API РєР»СЋС‡РµР№ РЅРµС‚, СЂР°Р·СЂРµС€Р°РµРј (РґР»СЏ РѕР±СЂР°С‚РЅРѕР№ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё)
     if (_apiKeys.Length == 0)
     {
         return true;
@@ -74,24 +74,24 @@ private bool IsAuthorized(HttpContext context, string? tokenParam = null)
 
     string? token = null;
 
-    // Проверяем Bearer токен в заголовке Authorization
+    // РџСЂРѕРІРµСЂСЏРµРј Bearer С‚РѕРєРµРЅ РІ Р·Р°РіРѕР»РѕРІРєРµ Authorization
     var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
     if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
     {
         token = authHeader.Substring("Bearer ".Length);
     }
 
-    // Если токен не найден в заголовке, используем параметр запроса
+    // Р•СЃР»Рё С‚РѕРєРµРЅ РЅРµ РЅР°Р№РґРµРЅ РІ Р·Р°РіРѕР»РѕРІРєРµ, РёСЃРїРѕР»СЊР·СѓРµРј РїР°СЂР°РјРµС‚СЂ Р·Р°РїСЂРѕСЃР°
     if (string.IsNullOrEmpty(token) && !string.IsNullOrEmpty(tokenParam))
     {
         token = tokenParam;
     }
 
-    // Проверяем токен
+    // РџСЂРѕРІРµСЂСЏРµРј С‚РѕРєРµРЅ
     return !string.IsNullOrEmpty(token) && _apiKeys.Contains(token);
 }
 ```
 
-## Или скопируйте полный файл из репозитория
+## РР»Рё СЃРєРѕРїРёСЂСѓР№С‚Рµ РїРѕР»РЅС‹Р№ С„Р°Р№Р» РёР· СЂРµРїРѕР·РёС‚РѕСЂРёСЏ
 
-Если проще, можно полностью заменить содержимое файла кодом из commits.
+Р•СЃР»Рё РїСЂРѕС‰Рµ, РјРѕР¶РЅРѕ РїРѕР»РЅРѕСЃС‚СЊСЋ Р·Р°РјРµРЅРёС‚СЊ СЃРѕРґРµСЂР¶РёРјРѕРµ С„Р°Р№Р»Р° РєРѕРґРѕРј РёР· commits.
